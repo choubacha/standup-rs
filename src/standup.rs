@@ -24,9 +24,25 @@ impl Standup {
     }
 
     pub fn blocker(self, blocker: &str) -> Standup {
-        let mut new_blocked = self.blocked.clone();
-        new_blocked.push(blocker.to_string());
-        Standup { blocked: new_blocked.clone(), .. self }
+        let blocked = Standup::push(&self.blocked, &blocker);
+        Standup { blocked: blocked, .. self }
+    }
+
+    pub fn today(self, today: &str) -> Standup {
+        let today = Standup::push(&self.today, &today);
+        Standup { today: today, .. self }
+    }
+
+    pub fn yesterday(self, yesterday: &str) -> Standup {
+        let yesterday = Standup::push(&self.yesterday, &yesterday);
+        Standup { yesterday: yesterday, .. self }
+    }
+
+    fn push(old: &Vec<String>, message: &str) -> Vec<String> {
+        let mut destination = Vec::with_capacity(old.len());
+        destination.extend_from_slice(old.as_slice());
+        destination.push(message.to_string());
+        destination.clone()
     }
 }
 
@@ -44,5 +60,21 @@ mod test {
     fn it_can_detect_non_blockage() {
         let standup = Standup::new();
         assert_eq!(standup.is_blocked(), false);
+    }
+
+    #[test]
+    fn it_can_add_to_today() {
+        let standup = Standup::new().today("hello world");
+        assert_eq!(standup.today.len(), 1);
+        assert_eq!(standup.today[0], "hello world");
+        assert_eq!(standup.today("another").today.len(), 2);
+    }
+
+    #[test]
+    fn it_can_add_to_yesterday() {
+        let standup = Standup::new().yesterday("hello world");
+        assert_eq!(standup.yesterday.len(), 1);
+        assert_eq!(standup.yesterday[0], "hello world");
+        assert_eq!(standup.yesterday("another").yesterday.len(), 2);
     }
 }
