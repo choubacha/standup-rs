@@ -5,3 +5,4 @@ authors = ["Kevin Choubacha <kchoubacha@weedmaps.com>"]
 
 [dependencies]
 clap = "2"
+chrono = "0.2"
