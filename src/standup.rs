@@ -2,11 +2,12 @@ use std::vec::Vec;
 use chrono::Date;
 use chrono::offset::local::Local;
 
+#[derive(Clone)]
 pub struct Standup {
-    today: Vec<String>,
-    yesterday: Vec<String>,
-    blocked: Vec<String>,
-    date: Date<Local>,
+    pub today: Vec<String>,
+    pub yesterday: Vec<String>,
+    pub blocked: Vec<String>,
+    pub date: Date<Local>,
 }
 
 impl Standup {
@@ -19,6 +20,15 @@ impl Standup {
         }
     }
 
+    pub fn from_date(date: Date<Local>) -> Standup {
+        Standup {
+            today: vec![],
+            yesterday: vec![],
+            blocked: vec![],
+            date: date
+        }
+    }
+
     pub fn is_blocked(&self) -> bool {
         !self.blocked.is_empty()
     }
@@ -28,12 +38,12 @@ impl Standup {
         Standup { blocked: blocked, .. self }
     }
 
-    pub fn today(self, today: &str) -> Standup {
+    pub fn add_today(self, today: &str) -> Standup {
         let today = Standup::push(&self.today, &today);
         Standup { today: today, .. self }
     }
 
-    pub fn yesterday(self, yesterday: &str) -> Standup {
+    pub fn add_yesterday(self, yesterday: &str) -> Standup {
         let yesterday = Standup::push(&self.yesterday, &yesterday);
         Standup { yesterday: yesterday, .. self }
     }
@@ -64,17 +74,17 @@ mod test {
 
     #[test]
     fn it_can_add_to_today() {
-        let standup = Standup::new().today("hello world");
+        let standup = Standup::new().add_today("hello world");
         assert_eq!(standup.today.len(), 1);
         assert_eq!(standup.today[0], "hello world");
-        assert_eq!(standup.today("another").today.len(), 2);
+        assert_eq!(standup.add_today("another").today.len(), 2);
     }
 
     #[test]
     fn it_can_add_to_yesterday() {
-        let standup = Standup::new().yesterday("hello world");
+        let standup = Standup::new().add_yesterday("hello world");
         assert_eq!(standup.yesterday.len(), 1);
         assert_eq!(standup.yesterday[0], "hello world");
-        assert_eq!(standup.yesterday("another").yesterday.len(), 2);
+        assert_eq!(standup.add_yesterday("another").yesterday.len(), 2);
     }
 }

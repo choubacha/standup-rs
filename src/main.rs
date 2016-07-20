@@ -1,8 +1,12 @@
 extern crate clap;
 extern crate chrono;
+extern crate serde;
+extern crate serde_json;
 
 use clap::{Arg, App, SubCommand, ArgMatches};
 mod standup;
+mod manager;
+mod to_json;
 
 static TYPES: &'static [&'static str] = &["today", "yesterday", "blocked"];
 
@@ -50,16 +54,16 @@ fn main() {
                         .alias("d")
                         .arg(date_arg.clone().required(true))
                         .arg(Arg::with_name("type")
-                             .value_name("TYPE")
-                             .requires("line_number")
-                             .possible_values(&TYPES)
-                             .index(1)
-                             .help("The type of line to delete."))
+                                 .value_name("TYPE")
+                                 .requires("line_number")
+                                 .possible_values(&TYPES)
+                                 .index(1)
+                                 .help("The type of line to delete."))
                         .arg(Arg::with_name("line_number")
-                             .value_name("LINE_NUMBER")
-                             .requires("type")
-                             .index(2)
-                             .help("The line number to delete."))
+                                 .value_name("LINE_NUMBER")
+                                 .requires("type")
+                                 .index(2)
+                                 .help("The line number to delete."))
                         )
         .get_matches();
 
