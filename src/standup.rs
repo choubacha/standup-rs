@@ -2,11 +2,11 @@ use std::vec::Vec;
 use chrono::Date;
 use chrono::offset::local::Local;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Standup {
     pub today: Vec<String>,
     pub yesterday: Vec<String>,
-    pub blocked: Vec<String>,
+    pub blocker: Vec<String>,
     pub date: Date<Local>,
 }
 
@@ -15,7 +15,7 @@ impl Standup {
         Standup {
             today: vec![],
             yesterday: vec![],
-            blocked: vec![],
+            blocker: vec![],
             date: Local::today()
         }
     }
@@ -24,18 +24,18 @@ impl Standup {
         Standup {
             today: vec![],
             yesterday: vec![],
-            blocked: vec![],
+            blocker: vec![],
             date: date
         }
     }
 
     pub fn is_blocked(&self) -> bool {
-        !self.blocked.is_empty()
+        !self.blocker.is_empty()
     }
 
-    pub fn blocker(self, blocker: &str) -> Standup {
-        let blocked = Standup::push(&self.blocked, &blocker);
-        Standup { blocked: blocked, .. self }
+    pub fn add_blocker(self, blocker: &str) -> Standup {
+        let blocker = Standup::push(&self.blocker, &blocker);
+        Standup { blocker: blocker, .. self }
     }
 
     pub fn add_today(self, today: &str) -> Standup {
@@ -46,6 +46,10 @@ impl Standup {
     pub fn add_yesterday(self, yesterday: &str) -> Standup {
         let yesterday = Standup::push(&self.yesterday, &yesterday);
         Standup { yesterday: yesterday, .. self }
+    }
+
+    pub fn set_date(self, date: Date<Local>) -> Standup {
+        Standup { date: date, .. self }
     }
 
     fn push(old: &Vec<String>, message: &str) -> Vec<String> {
@@ -62,7 +66,7 @@ mod test {
 
     #[test]
     fn it_can_detect_blockage() {
-        let standup = Standup::new().blocker("yo yo");
+        let standup = Standup::new().add_blocker("yo yo");
         assert_eq!(standup.is_blocked(), true);
     }
 

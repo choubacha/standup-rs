@@ -6,9 +6,9 @@ extern crate serde_json;
 use clap::{Arg, App, SubCommand, ArgMatches};
 mod standup;
 mod manager;
-mod to_json;
+mod jsonify;
 
-static TYPES: &'static [&'static str] = &["today", "yesterday", "blocked"];
+static TYPES: &'static [&'static str] = &["today", "yesterday", "blocker"];
 
 fn main() {
     let date_arg = Arg::with_name("date")
@@ -37,7 +37,7 @@ fn main() {
                         .arg(date_arg.clone())
                         .arg(message_arg.clone())
                         )
-        .subcommand(SubCommand::with_name("blocked")
+        .subcommand(SubCommand::with_name("blocker")
                         .about("Manages what is blocking you")
                         .alias("b")
                         .arg(date_arg.clone())
@@ -70,7 +70,7 @@ fn main() {
     match matches.subcommand() {
         ("today",       Some(sub_args)) => handle_today(sub_args),
         ("yesterday",   Some(sub_args)) => handle_yesterday(sub_args),
-        ("blocked",     Some(sub_args)) => handle_blocked(sub_args),
+        ("blocker",     Some(sub_args)) => handle_blocker(sub_args),
         ("show",        Some(sub_args)) => handle_show(sub_args),
         ("delete",      Some(sub_args)) => handle_delete(sub_args),
         _ => {},
@@ -87,8 +87,8 @@ fn handle_yesterday(args: &ArgMatches) {
     println!("date: {}", args.value_of("date").unwrap_or(""));
 }
 
-fn handle_blocked(args: &ArgMatches) {
-    println!("blocked!");
+fn handle_blocker(args: &ArgMatches) {
+    println!("blocker!");
     println!("date: {}", args.value_of("date").unwrap_or(""));
 }
 
