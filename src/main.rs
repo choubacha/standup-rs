@@ -3,10 +3,17 @@ extern crate chrono;
 extern crate serde;
 extern crate serde_json;
 
+use chrono::*;
+use std::env::home_dir;
+use std::fs::OpenOptions;
 use clap::{Arg, App, SubCommand, ArgMatches};
+
 mod standup;
 mod manager;
 mod jsonify;
+
+use manager::Manager;
+use standup::Standup;
 
 static TYPES: &'static [&'static str] = &["today", "yesterday", "blocker"];
 
@@ -77,9 +84,43 @@ fn main() {
     }
 }
 
+fn get_date(args: &ArgMatches) -> Date<Local> {
+    match args.value_of("date") {
+        Some(date_string) => {
+            let date = NaiveDate::parse_from_str(date_string, "%F").unwrap();
+            Local.ymd(date.year(), date.month(), date.day())
+        },
+        _ => Local::today()
+    }
+}
+
+fn load_manager() -> Manager {
+    let mut path = home_dir().unwrap();
+    path.push(".standup.json");
+    if path.as_path().is_file() {
+        let file = OpenOptions::new().read(true).open(path.as_path());
+        Manager::from_reader(file.unwrap())
+    } else {
+        OpenOptions::new().create(true).write(true).open(path.as_path());
+        Manager::new()
+    }
+}
+
+fn flush_manager(manager: &mut Manager) {
+    let mut path = home_dir().unwrap();
+    path.push(".standup.json");
+    let file = OpenOptions::new().write(true).open(path.as_path());
+    manager.flush(file.unwrap());
+}
+
 fn handle_today(args: &ArgMatches) {
-    println!("today!");
-    println!("date: {}", args.value_of("date").unwrap_or(""));
+    let today = args.value_of("message").unwrap();
+    let mut manager = load_manager();
+    let date = get_date(&args);
+    let standup = manager.get(&date).unwrap_or(Standup::from_date(date));
+    let standup = standup.add_today(today);
+    manager.insert(&standup);
+    flush_manager(&mut manager)
 }
 
 fn handle_yesterday(args: &ArgMatches) {

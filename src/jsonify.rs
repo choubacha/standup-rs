@@ -1,9 +1,8 @@
 use standup::Standup;
 use chrono::*;
-use serde_json::builder::{ObjectBuilder, ArrayBuilder};
+use serde_json::builder::ObjectBuilder;
 use serde_json::{from_str,from_value,Value,Map};
 use serde_json::error::Result;
-use std::sync::Arc;
 
 pub fn serialize(standups: &[&Standup]) -> String {
     let array = standups.iter().map(|standup| {
