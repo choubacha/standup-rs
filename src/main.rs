@@ -6,6 +6,7 @@ extern crate serde_json;
 use chrono::*;
 use std::env::home_dir;
 use std::fs::OpenOptions;
+use std::io;
 use clap::{Arg, App, SubCommand, ArgMatches};
 
 mod standup;
@@ -16,6 +17,19 @@ use manager::Manager;
 use standup::Standup;
 
 static TYPES: &'static [&'static str] = &["today", "yesterday", "blocker"];
+
+#[derive(Debug)]
+pub enum CliError {
+    Io(io::Error),
+    Parse(serde_json::error::Error),
+    Cli(StandupError)
+}
+
+#[derive(Debug)]
+pub enum StandupError {
+    HomeDirNotFound,
+    DataFilepathInvalid
+}
 
 fn main() {
     let date_arg = Arg::with_name("date")
@@ -54,7 +68,10 @@ fn main() {
                         .about("Displays the notes from stand up")
                         .alias("s")
                         .arg(date_arg.clone())
-                        .arg(message_arg.clone())
+                        )
+        .subcommand(SubCommand::with_name("list")
+                        .about("Displays the notes from the last few standups")
+                        .alias("ls")
                         )
         .subcommand(SubCommand::with_name("delete")
                         .about("Deletes the standup on the specified day.")
@@ -79,6 +96,7 @@ fn main() {
         ("yesterday",   Some(sub_args)) => handle_yesterday(sub_args),
         ("blocker",     Some(sub_args)) => handle_blocker(sub_args),
         ("show",        Some(sub_args)) => handle_show(sub_args),
+        ("list",        Some(sub_args)) => handle_list(sub_args),
         ("delete",      Some(sub_args)) => handle_delete(sub_args),
         _ => {},
     }
@@ -94,48 +112,93 @@ fn get_date(args: &ArgMatches) -> Date<Local> {
     }
 }
 
-fn load_manager() -> Manager {
-    let mut path = home_dir().unwrap();
-    path.push(".standup.json");
-    if path.as_path().is_file() {
-        let file = OpenOptions::new().read(true).open(path.as_path());
-        Manager::from_reader(file.unwrap())
-    } else {
-        OpenOptions::new().create(true).write(true).open(path.as_path());
-        Manager::new()
+use std::path::PathBuf;
+fn get_path() -> Result<PathBuf, CliError> {
+    match home_dir() {
+        Some(ref mut path_buf) => {
+            path_buf.push(".standup.json");
+            // Recreate as immutable
+            Ok(path_buf.as_path().to_path_buf())
+        },
+        None => Err(CliError::Cli(StandupError::HomeDirNotFound))
     }
 }
 
-fn flush_manager(manager: &mut Manager) {
-    let mut path = home_dir().unwrap();
-    path.push(".standup.json");
-    let file = OpenOptions::new().write(true).open(path.as_path());
-    manager.flush(file.unwrap());
+fn load_manager() -> Result<Manager, CliError> {
+    get_path().and_then(|path| {
+        if path.is_file() {
+            let file = OpenOptions::new().read(true).open(path);
+            file.map_err(CliError::Io).and_then(Manager::from_reader)
+        } else {
+            OpenOptions::new().create(true).write(true).open(path);
+            Ok(Manager::new())
+        }
+    })
+}
+
+fn flush_manager(manager: &mut Manager) -> Result<(), CliError> {
+    get_path().and_then(|path| {
+        let file = OpenOptions::new().write(true).open(path);
+        file.map_err(CliError::Io).and_then(|file| manager.flush(file))
+    })
+}
+
+fn with_standup<F>(args: &ArgMatches, op: F) -> Result<(), CliError>
+    where F: FnOnce(Standup) -> Standup
+{
+    let date = get_date(&args);
+    with_manager(|manager| {
+        let standup = op(manager.get(&date).unwrap_or(Standup::from_date(date)));
+        Some(standup)
+    })
+}
+
+fn with_ro_standup<F>(args: &ArgMatches, op: F) -> Result<(), CliError>
+    where F: FnOnce(Standup)
+{
+    let date = get_date(&args);
+    with_manager(|manager| {
+        op(manager.get(&date).unwrap_or(Standup::from_date(date)));
+        None
+    })
+}
+
+fn with_manager<F>(op: F) -> Result<(), CliError>
+    where F: FnOnce(&mut Manager) -> Option<Standup>
+{
+    let mut manager = try!(load_manager());
+    if let Some(standup) = op(&mut manager) {
+        manager.insert(&standup);
+        flush_manager(&mut manager)
+    } else {
+        Ok(())
+    }
 }
 
 fn handle_today(args: &ArgMatches) {
     let today = args.value_of("message").unwrap();
-    let mut manager = load_manager();
-    let date = get_date(&args);
-    let standup = manager.get(&date).unwrap_or(Standup::from_date(date));
-    let standup = standup.add_today(today);
-    manager.insert(&standup);
-    flush_manager(&mut manager)
+    with_standup(&args, |standup| standup.add_today(today)).unwrap();
 }
 
 fn handle_yesterday(args: &ArgMatches) {
-    println!("yesterday!");
-    println!("date: {}", args.value_of("date").unwrap_or(""));
+    let yesterday = args.value_of("message").unwrap();
+    with_standup(&args, |standup| standup.add_yesterday(yesterday)).unwrap();
 }
 
 fn handle_blocker(args: &ArgMatches) {
-    println!("blocker!");
-    println!("date: {}", args.value_of("date").unwrap_or(""));
+    let blocker = args.value_of("message").unwrap();
+    with_standup(&args, |standup| standup.add_blocker(blocker)).unwrap();
 }
 
 fn handle_show(args: &ArgMatches) {
-    println!("showing!");
-    println!("date: {}", args.value_of("date").unwrap_or(""));
+    with_ro_standup(&args, |standup| println!("{}", &standup));
+}
+
+fn handle_list(args: &ArgMatches) {
+    let mut manager = load_manager().unwrap();
+    for standup in manager.standups() {
+        println!("{}", &standup);
+    }
 }
 
 fn handle_delete(args: &ArgMatches) {

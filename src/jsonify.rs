@@ -4,6 +4,8 @@ use serde_json::builder::ObjectBuilder;
 use serde_json::{from_str,from_value,Value,Map};
 use serde_json::error::Result;
 
+type Obj = Map<String, Value>;
+
 pub fn serialize(standups: &[&Standup]) -> String {
     let array = standups.iter().map(|standup| {
         ObjectBuilder::new()
@@ -18,11 +20,11 @@ pub fn serialize(standups: &[&Standup]) -> String {
 
 pub fn deserialize(json: String) -> Result<Vec<Standup>> {
     from_str(&json)
-        .and_then(|parsed| from_value::<Vec<Map<String, Value>>>(parsed))
+        .and_then(|parsed| from_value::<Vec<Obj>>(parsed))
         .map(|objs| objs.iter().map(|obj| build_standup(obj)).collect())
 }
 
-fn build_standup(obj: &Map<String, Value>) -> Standup {
+fn build_standup(obj: &Obj) -> Standup {
     let s = Standup::new();
     let s = add_message(s, &obj, "today",       |s, msg| s.add_today(msg));
     let s = add_message(s, &obj, "yesterday",   |s, msg| s.add_yesterday(msg));
@@ -31,7 +33,7 @@ fn build_standup(obj: &Map<String, Value>) -> Standup {
     s
 }
 
-fn add_message<F>(standup: Standup, obj: &Map<String, Value>, key: &str, op: F) -> Standup
+fn add_message<F>(standup: Standup, obj: &Obj, key: &str, op: F) -> Standup
     where F: FnMut(Standup, &str) -> Standup
 {
     obj.get(key)
@@ -46,7 +48,7 @@ fn add_message<F>(standup: Standup, obj: &Map<String, Value>, key: &str, op: F) 
         })
 }
 
-fn set_date(standup: Standup, obj: &Map<String, Value>) -> Standup {
+fn set_date(standup: Standup, obj: &Obj) -> Standup {
     obj.get("date")
         .and_then(|date_value| date_value.as_string())
         .map_or(standup.clone(), |date_string| {

@@ -1,4 +1,6 @@
 use std::vec::Vec;
+use std::fmt;
+use std::fmt::Display;
 use chrono::Date;
 use chrono::offset::local::Local;
 
@@ -8,6 +10,27 @@ pub struct Standup {
     pub yesterday: Vec<String>,
     pub blocker: Vec<String>,
     pub date: Date<Local>,
+}
+
+impl Display for Standup {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        try!(write!(f, "date: {}\n", self.date.format("%F - %A")));
+        try!(write!(f, "  today:\n"));
+        for (i, message) in self.today.iter().enumerate() {
+            try!(write!(f, "    {}. {}\n", i + 1, message));
+        }
+        try!(write!(f, "  yesterday:\n"));
+        for (i, message) in self.yesterday.iter().enumerate() {
+            try!(write!(f, "    {}. {}\n", i + 1, message));
+        }
+        if self.is_blocked() {
+            try!(write!(f, "  blocker:\n"));
+            for (i, message) in self.blocker.iter().enumerate() {
+                try!(write!(f, "    {}. {}\n", i + 1, message));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Standup {

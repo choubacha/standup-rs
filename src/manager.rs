@@ -4,6 +4,7 @@ use chrono::Date;
 use chrono::offset::local::Local;
 use std::collections::BTreeMap;
 use jsonify;
+use super::CliError;
 
 pub struct Manager {
     standups: BTreeMap<Date<Local>, Standup>
@@ -14,19 +15,26 @@ impl Manager {
         Manager { standups: BTreeMap::new() }
     }
 
-    pub fn from_reader<F: Read>(mut reader: F) -> Manager {
+    pub fn from_reader<F: Read>(mut reader: F) -> Result<Manager, CliError> {
         let mut buf = String::new();
-        reader.read_to_string(&mut buf).unwrap();
+        try!(reader.read_to_string(&mut buf).map_err(CliError::Io));
+
         let mut manager = Manager { standups: BTreeMap::new() };
         for standup in jsonify::deserialize(buf).unwrap() {
             manager.insert(&standup);
         }
-        manager
+        Ok(manager)
     }
 
-    pub fn flush<F: Write>(&mut self, mut writer: F) {
+    pub fn flush<F: Write>(&mut self, mut writer: F) -> Result<(), CliError> {
         let standups: Vec<&Standup> = self.standups.values().clone().collect();
-        writer.write(jsonify::serialize(&standups).as_bytes()).unwrap();
+        writer.write(jsonify::serialize(&standups).as_bytes())
+            .map(|_| ())
+            .map_err(CliError::Io)
+    }
+
+    pub fn standups(&mut self) -> Vec<&Standup> {
+        self.standups.values().collect()
     }
 
     pub fn get(&mut self, date: &Date<Local>) -> Option<Standup> {
@@ -48,13 +56,14 @@ mod test {
 
     #[test]
     fn it_can_read_the_standups_out_of_a_stream() {
-        let mut manager = Manager::from_reader("[{\"date\":\"2015-01-01\"}]".as_bytes());
+        let mut manager = Manager::from_reader("[{\"date\":\"2015-01-01\"}]".as_bytes())
+            .unwrap();
         assert_eq!(manager.get(&Local.ymd(2015,1,1)).is_some(), true);
     }
 
     #[test]
     fn it_can_flush_to_a_stream() {
-        let mut manager = Manager::from_reader("[]".as_bytes());
+        let mut manager = Manager::from_reader("[]".as_bytes()).unwrap();
         manager.insert(&Standup::from_date(Local.ymd(2015, 1, 1)));
         let mut bytes: Vec<u8> = Vec::new();
         manager.flush(&mut bytes);
@@ -64,7 +73,7 @@ mod test {
 
     #[test]
     fn it_can_add_standups() {
-        let mut manager = Manager::from_reader("[]".as_bytes());
+        let mut manager = Manager::from_reader("[]".as_bytes()).unwrap();
         let standup = Standup::new();
         manager.insert(&standup);
         assert_eq!(manager.get(&standup.date).unwrap(), standup);
