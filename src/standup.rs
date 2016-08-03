@@ -56,30 +56,48 @@ impl Standup {
         !self.blocker.is_empty()
     }
 
-    pub fn add_blocker(self, blocker: &str) -> Standup {
-        let blocker = Standup::push(&self.blocker, &blocker);
-        Standup { blocker: blocker, .. self }
+    pub fn remove_blocker(self, index: usize) -> Standup {
+        Standup { blocker: Standup::delete(&self.blocker, index), ..self }
     }
 
-    pub fn add_today(self, today: &str) -> Standup {
-        let today = Standup::push(&self.today, &today);
-        Standup { today: today, .. self }
+    pub fn remove_today(self, index: usize) -> Standup {
+        Standup { today: Standup::delete(&self.today, index), ..self }
     }
 
-    pub fn add_yesterday(self, yesterday: &str) -> Standup {
-        let yesterday = Standup::push(&self.yesterday, &yesterday);
-        Standup { yesterday: yesterday, .. self }
+    pub fn remove_yesterday(self, index: usize) -> Standup {
+        Standup { yesterday: Standup::delete(&self.yesterday, index), ..self }
+    }
+
+    pub fn add_blocker(self, msg: &str) -> Standup {
+        Standup { blocker: Standup::push(&self.blocker, &msg), .. self }
+    }
+
+    pub fn add_today(self, msg: &str) -> Standup {
+        Standup { today: Standup::push(&self.today, &msg), .. self }
+    }
+
+    pub fn add_yesterday(self, msg: &str) -> Standup {
+        Standup { yesterday: Standup::push(&self.yesterday, &msg), .. self }
     }
 
     pub fn set_date(self, date: Date<Local>) -> Standup {
         Standup { date: date, .. self }
     }
 
+    fn delete(old: &Vec<String>, index: usize) -> Vec<String> {
+        if index >= old.len() { return old.clone() }
+        let mut destination = Vec::with_capacity(old.len());
+        destination.extend_from_slice(&old[..index]);
+        destination.extend_from_slice(&old[(index + 1)..]);
+        destination.shrink_to_fit();
+        destination
+    }
+
     fn push(old: &Vec<String>, message: &str) -> Vec<String> {
         let mut destination = Vec::with_capacity(old.len());
         destination.extend_from_slice(old.as_slice());
         destination.push(message.to_string());
-        destination.clone()
+        destination
     }
 }
 
@@ -113,5 +131,41 @@ mod test {
         assert_eq!(standup.yesterday.len(), 1);
         assert_eq!(standup.yesterday[0], "hello world");
         assert_eq!(standup.add_yesterday("another").yesterday.len(), 2);
+    }
+
+    #[test]
+    fn it_can_remove_a_blocker() {
+        let standup = Standup::new()
+            .add_blocker("hello world")
+            .add_blocker("another world")
+            .add_blocker("a whole new world")
+            .remove_blocker(0);
+        assert_eq!(standup.blocker.len(), 2);
+    }
+
+    #[test]
+    fn it_will_just_return_a_copy_when_index_outside_range() {
+        let standup = Standup::new()
+            .add_blocker("hello world")
+            .add_blocker("anohter world")
+            .add_blocker("a whole new world")
+            .remove_blocker(8);
+        assert_eq!(standup.blocker.len(), 3);
+    }
+
+    #[test]
+    fn it_can_remove_a_today() {
+        let standup = Standup::new()
+            .add_today("hello world")
+            .remove_today(0);
+        assert_eq!(standup.today.len(), 0);
+    }
+
+    #[test]
+    fn it_can_remove_a_yesterday() {
+        let standup = Standup::new()
+            .add_yesterday("hello world")
+            .remove_yesterday(0);
+        assert_eq!(standup.yesterday.len(), 0);
     }
 }
