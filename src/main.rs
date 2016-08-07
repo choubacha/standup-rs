@@ -196,7 +196,7 @@ fn handle_show(args: &ArgMatches) {
 
 fn handle_list(args: &ArgMatches) {
     let mut manager = load_manager().unwrap();
-    for standup in manager.standups() {
+    for standup in manager.standups().iter().rev() {
         println!("{}", &standup);
     }
 }
