@@ -3,18 +3,16 @@ extern crate chrono;
 extern crate serde;
 extern crate serde_json;
 
-use chrono::*;
-use std::env::home_dir;
-use std::fs::OpenOptions;
+use clap::{Arg, SubCommand, ArgMatches};
 use std::io;
-use clap::{Arg, App, SubCommand, ArgMatches};
 
 mod standup;
-mod manager;
 mod jsonify;
+mod app;
 
-use manager::Manager;
+use standup::Aspect;
 use standup::Standup;
+use app::App;
 
 static TYPES: &'static [&'static str] = &["today", "yesterday", "blocker"];
 
@@ -28,7 +26,8 @@ pub enum CliError {
 #[derive(Debug)]
 pub enum StandupError {
     HomeDirNotFound,
-    DataFilepathInvalid
+    DataFilepathInvalid,
+    InvalidDate,
 }
 
 fn main() {
@@ -42,7 +41,7 @@ fn main() {
         .required(true)
         .help("The message to add to the stand up");
 
-    let matches = App::new("standup")
+    let matches = clap::App::new("standup")
         .version("0.0.1")
         .author("Kevin Bacha <chewbacha@gmail.com>")
         .about("Manages stand up entries and keeps log")
@@ -92,116 +91,42 @@ fn main() {
         .get_matches();
 
     match matches.subcommand() {
-        ("today",       Some(sub_args)) => handle_today(sub_args),
-        ("yesterday",   Some(sub_args)) => handle_yesterday(sub_args),
-        ("blocker",     Some(sub_args)) => handle_blocker(sub_args),
+        ("today",       Some(sub_args)) => record_message(Aspect::Today, sub_args),
+        ("yesterday",   Some(sub_args)) => record_message(Aspect::Yesterday, sub_args),
+        ("blocker",     Some(sub_args)) => record_message(Aspect::Blocker, sub_args),
         ("show",        Some(sub_args)) => handle_show(sub_args),
-        ("list",        Some(sub_args)) => handle_list(sub_args),
+        ("list",        Some(sub_args)) => handle_list(),
         ("delete",      Some(sub_args)) => handle_delete(sub_args),
         _ => {},
     }
 }
 
-fn get_date(args: &ArgMatches) -> Date<Local> {
-    match args.value_of("date") {
-        Some(date_string) => {
-            let date = NaiveDate::parse_from_str(date_string, "%F").unwrap();
-            Local.ymd(date.year(), date.month(), date.day())
-        },
-        _ => Local::today()
-    }
-}
-
-use std::path::PathBuf;
-fn get_path() -> Result<PathBuf, CliError> {
-    match home_dir() {
-        Some(ref mut path_buf) => {
-            path_buf.push(".standup.json");
-            // Recreate as immutable
-            Ok(path_buf.as_path().to_path_buf())
-        },
-        None => Err(CliError::Cli(StandupError::HomeDirNotFound))
-    }
-}
-
-fn load_manager() -> Result<Manager, CliError> {
-    get_path().and_then(|path| {
-        if path.is_file() {
-            let file = OpenOptions::new().read(true).open(path);
-            file.map_err(CliError::Io).and_then(Manager::from_reader)
-        } else {
-            OpenOptions::new().create(true).write(true).open(path);
-            Ok(Manager::new())
-        }
-    })
-}
-
-fn flush_manager(manager: &mut Manager) -> Result<(), CliError> {
-    get_path().and_then(|path| {
-        let file = OpenOptions::new().write(true).open(path);
-        file.map_err(CliError::Io).and_then(|file| manager.flush(file))
-    })
-}
-
-fn with_standup<F>(args: &ArgMatches, op: F) -> Result<(), CliError>
-    where F: FnOnce(Standup) -> Standup
-{
-    let date = get_date(&args);
-    with_manager(|manager| {
-        let standup = op(manager.get(&date).unwrap_or(Standup::from_date(date)));
-        Some(standup)
-    })
-}
-
-fn with_ro_standup<F>(args: &ArgMatches, op: F) -> Result<(), CliError>
-    where F: FnOnce(Standup)
-{
-    let date = get_date(&args);
-    with_manager(|manager| {
-        op(manager.get(&date).unwrap_or(Standup::from_date(date)));
-        None
-    })
-}
-
-fn with_manager<F>(op: F) -> Result<(), CliError>
-    where F: FnOnce(&mut Manager) -> Option<Standup>
-{
-    let mut manager = try!(load_manager());
-    if let Some(standup) = op(&mut manager) {
-        manager.insert(&standup);
-        flush_manager(&mut manager)
-    } else {
-        Ok(())
-    }
-}
-
-fn handle_today(args: &ArgMatches) {
-    let today = args.value_of("message").unwrap();
-    with_standup(&args, |standup| standup.add_today(today)).unwrap();
-}
-
-fn handle_yesterday(args: &ArgMatches) {
-    let yesterday = args.value_of("message").unwrap();
-    with_standup(&args, |standup| standup.add_yesterday(yesterday)).unwrap();
-}
-
-fn handle_blocker(args: &ArgMatches) {
-    let blocker = args.value_of("message").unwrap();
-    with_standup(&args, |standup| standup.add_blocker(blocker)).unwrap();
+fn record_message(aspect: Aspect, args: &ArgMatches) {
+    let message = args.value_of("message").map(|s| s.to_string()).unwrap();
+    let date = args.value_of("date").map(|s| s.to_string());
+    let mut app = App::new(date).unwrap();
+    app.record(aspect, message);
 }
 
 fn handle_show(args: &ArgMatches) {
-    with_ro_standup(&args, |standup| println!("{}", &standup));
+    let date = args.value_of("date").map(|s| s.to_string());
+    let app = App::new(date).unwrap();
+    println!("{}", &app.get_standup());
 }
 
-fn handle_list(args: &ArgMatches) {
-    let mut manager = load_manager().unwrap();
-    for standup in manager.standups().iter().rev() {
+fn handle_list() {
+    let app = App::new(None).unwrap();
+    for standup in app.standups().iter().rev() {
         println!("{}", &standup);
     }
 }
 
 fn handle_delete(args: &ArgMatches) {
-    println!("deleting!");
-    println!("date: {}", args.value_of("date").unwrap_or(""));
+    let date = args.value_of("date").map(|s| s.to_string());
+    let mut app = App::new(date).unwrap();
+    if let Some(standup) = app.delete() {
+        println!("deleted: \n{}", standup);
+    } else {
+        println!("No standup found on that day");
+    }
 }

@@ -12,9 +12,15 @@ pub struct Standup {
     pub date: Date<Local>,
 }
 
+pub enum Aspect {
+    Today,
+    Yesterday,
+    Blocker
+}
+
 impl Display for Standup {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, "date: {}\n", self.date.format("%F - %A")));
+        try!(write!(f, "{}\n", self.date.format("%F - %A")));
         try!(write!(f, "  today:\n"));
         for (i, message) in self.today.iter().enumerate() {
             try!(write!(f, "    {}. {}\n", i + 1, message));
@@ -56,32 +62,48 @@ impl Standup {
         !self.blocker.is_empty()
     }
 
-    pub fn remove_blocker(self, index: usize) -> Standup {
+    pub fn set_date(self, date: Date<Local>) -> Standup {
+        Standup { date: date, .. self }
+    }
+
+    pub fn remove(self, aspect: Aspect, index: usize) -> Standup {
+        match aspect {
+            Aspect::Today => self.remove_today(index),
+            Aspect::Yesterday => self.remove_yesterday(index),
+            Aspect::Blocker => self.remove_blocker(index)
+        }
+    }
+
+    pub fn add(self, aspect: Aspect, msg: &str) -> Standup {
+        match aspect {
+            Aspect::Today => self.add_today(&msg),
+            Aspect::Yesterday => self.add_yesterday(&msg),
+            Aspect::Blocker => self.add_blocker(&msg)
+        }
+    }
+
+    fn remove_blocker(self, index: usize) -> Standup {
         Standup { blocker: Standup::delete(&self.blocker, index), ..self }
     }
 
-    pub fn remove_today(self, index: usize) -> Standup {
+    fn remove_today(self, index: usize) -> Standup {
         Standup { today: Standup::delete(&self.today, index), ..self }
     }
 
-    pub fn remove_yesterday(self, index: usize) -> Standup {
+    fn remove_yesterday(self, index: usize) -> Standup {
         Standup { yesterday: Standup::delete(&self.yesterday, index), ..self }
     }
 
-    pub fn add_blocker(self, msg: &str) -> Standup {
+    fn add_blocker(self, msg: &str) -> Standup {
         Standup { blocker: Standup::push(&self.blocker, &msg), .. self }
     }
 
-    pub fn add_today(self, msg: &str) -> Standup {
+    fn add_today(self, msg: &str) -> Standup {
         Standup { today: Standup::push(&self.today, &msg), .. self }
     }
 
-    pub fn add_yesterday(self, msg: &str) -> Standup {
+    fn add_yesterday(self, msg: &str) -> Standup {
         Standup { yesterday: Standup::push(&self.yesterday, &msg), .. self }
-    }
-
-    pub fn set_date(self, date: Date<Local>) -> Standup {
-        Standup { date: date, .. self }
     }
 
     fn delete(old: &Vec<String>, index: usize) -> Vec<String> {
@@ -107,7 +129,7 @@ mod test {
 
     #[test]
     fn it_can_detect_blockage() {
-        let standup = Standup::new().add_blocker("yo yo");
+        let standup = Standup::new().add(Aspect::Blocker, "yo yo");
         assert_eq!(standup.is_blocked(), true);
     }
 
@@ -119,53 +141,53 @@ mod test {
 
     #[test]
     fn it_can_add_to_today() {
-        let standup = Standup::new().add_today("hello world");
+        let standup = Standup::new().add(Aspect::Today, "hello world");
         assert_eq!(standup.today.len(), 1);
         assert_eq!(standup.today[0], "hello world");
-        assert_eq!(standup.add_today("another").today.len(), 2);
+        assert_eq!(standup.add(Aspect::Today, "another").today.len(), 2);
     }
 
     #[test]
     fn it_can_add_to_yesterday() {
-        let standup = Standup::new().add_yesterday("hello world");
+        let standup = Standup::new().add(Aspect::Yesterday, "hello world");
         assert_eq!(standup.yesterday.len(), 1);
         assert_eq!(standup.yesterday[0], "hello world");
-        assert_eq!(standup.add_yesterday("another").yesterday.len(), 2);
+        assert_eq!(standup.add(Aspect::Yesterday, "another").yesterday.len(), 2);
     }
 
     #[test]
     fn it_can_remove_a_blocker() {
         let standup = Standup::new()
-            .add_blocker("hello world")
-            .add_blocker("another world")
-            .add_blocker("a whole new world")
-            .remove_blocker(0);
+            .add(Aspect::Blocker, "hello world")
+            .add(Aspect::Blocker, "another world")
+            .add(Aspect::Blocker, "a whole new world")
+            .remove(Aspect::Blocker, 0);
         assert_eq!(standup.blocker.len(), 2);
     }
 
     #[test]
     fn it_will_just_return_a_copy_when_index_outside_range() {
         let standup = Standup::new()
-            .add_blocker("hello world")
-            .add_blocker("anohter world")
-            .add_blocker("a whole new world")
-            .remove_blocker(8);
+            .add(Aspect::Blocker, "hello world")
+            .add(Aspect::Blocker, "anohter world")
+            .add(Aspect::Blocker, "a whole new world")
+            .remove(Aspect::Blocker, 8);
         assert_eq!(standup.blocker.len(), 3);
     }
 
     #[test]
     fn it_can_remove_a_today() {
         let standup = Standup::new()
-            .add_today("hello world")
-            .remove_today(0);
+            .add(Aspect::Today, "hello world")
+            .remove(Aspect::Today, 0);
         assert_eq!(standup.today.len(), 0);
     }
 
     #[test]
     fn it_can_remove_a_yesterday() {
         let standup = Standup::new()
-            .add_yesterday("hello world")
-            .remove_yesterday(0);
+            .add(Aspect::Yesterday, "hello world")
+            .remove(Aspect::Yesterday, 0);
         assert_eq!(standup.yesterday.len(), 0);
     }
 }

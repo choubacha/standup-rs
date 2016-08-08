@@ -1,4 +1,4 @@
-use standup::Standup;
+use standup::{Standup, Aspect};
 use chrono::*;
 use serde_json::builder::ObjectBuilder;
 use serde_json::{from_str,from_value,Value,Map};
@@ -26,9 +26,9 @@ pub fn deserialize(json: String) -> Result<Vec<Standup>> {
 
 fn build_standup(obj: &Obj) -> Standup {
     let s = Standup::new();
-    let s = add_message(s, &obj, "today",       |s, msg| s.add_today(msg));
-    let s = add_message(s, &obj, "yesterday",   |s, msg| s.add_yesterday(msg));
-    let s = add_message(s, &obj, "blocker",     |s, msg| s.add_blocker(msg));
+    let s = add_message(s, &obj, "today",       |s, msg| s.add(Aspect::Today, msg));
+    let s = add_message(s, &obj, "yesterday",   |s, msg| s.add(Aspect::Yesterday, msg));
+    let s = add_message(s, &obj, "blocker",     |s, msg| s.add(Aspect::Blocker, msg));
     let s = set_date(s, &obj);
     s
 }
@@ -63,26 +63,26 @@ fn set_date(standup: Standup, obj: &Obj) -> Standup {
 #[cfg(test)]
 mod test {
     use super::*;
-    use standup::Standup;
+    use standup::{Standup, Aspect};
     use chrono::*;
 
     #[test]
     fn it_will_include_todays_notes() {
-        let standup = Standup::new().add_today("today");
+        let standup = Standup::new().add(Aspect::Today, "today");
         let json = serialize(&[&standup]);
         assert!(json.as_str().contains("today\":[\"today\"]"));
     }
 
     #[test]
     fn it_will_include_yesterdays_notes() {
-        let standup = Standup::new().add_yesterday("yesterday");
+        let standup = Standup::new().add(Aspect::Yesterday, "yesterday");
         let json = serialize(&[&standup]);
         assert!(json.as_str().contains("yesterday\":[\"yesterday\"]"));
     }
 
     #[test]
     fn it_will_include_blocker_notes() {
-        let standup = Standup::new().add_blocker("blocker");
+        let standup = Standup::new().add(Aspect::Blocker, "blocker");
         let json = serialize(&[&standup]);
         assert!(json.as_str().contains("blocker\":[\"blocker\"]"));
     }
@@ -96,21 +96,21 @@ mod test {
 
     #[test]
     fn it_will_load_in_todays_messages() {
-        let standup = Standup::new().add_today("today");
+        let standup = Standup::new().add(Aspect::Today, "today");
         let standups = deserialize(serialize(&[&standup])).unwrap();
         assert_eq!(standups[0].today, vec!["today"]);
     }
 
     #[test]
     fn it_will_load_in_yesterdays_messages() {
-        let standup = Standup::new().add_yesterday("yesterday");
+        let standup = Standup::new().add(Aspect::Yesterday, "yesterday");
         let standups = deserialize(serialize(&[&standup])).unwrap();
         assert_eq!(standups[0].yesterday, vec!["yesterday"]);
     }
 
     #[test]
     fn it_will_load_in_blockers() {
-        let standup = Standup::new().add_blocker("blocker");
+        let standup = Standup::new().add(Aspect::Blocker, "blocker");
         let standups = deserialize(serialize(&[&standup])).unwrap();
         assert_eq!(standups[0].blocker, vec!["blocker"]);
     }
