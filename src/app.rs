@@ -56,20 +56,27 @@ impl App {
     fn load_manager() -> Result<Manager, CliError> {
         App::get_path().and_then(|path| {
             if path.is_file() {
-                let file = OpenOptions::new().read(true).open(path);
-                file.map_err(CliError::Io).and_then(Manager::from_reader)
+                OpenOptions::new()
+                    .read(true)
+                    .open(path)
+                    .map_err(CliError::Io)
+                    .and_then(Manager::from_reader)
             } else {
-                OpenOptions::new().create(true).write(true).open(path);
-                Ok(Manager::new())
+                OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .open(path)
+                    .map_err(CliError::Io)
+                    .map(|_| Manager::new())
             }
         })
     }
 
-    fn flush_manager(&mut self) -> Result<(), CliError> {
+    fn flush_manager(&mut self) {
         App::get_path().and_then(|path| {
             let file = OpenOptions::new().create(true).write(true).truncate(true).open(path);
             file.map_err(CliError::Io).and_then(|file| self.manager.flush(file))
-        })
+        }).unwrap();
     }
 
     pub fn get_standup(&self) -> Standup {
@@ -90,5 +97,11 @@ impl App {
         let standup = self.manager.delete(&self.date);
         self.flush_manager();
         standup
+    }
+
+    pub fn delete_line(&mut self, aspect: Aspect, index: usize) {
+        let standup = self.get_standup().remove(aspect, index);
+        self.manager.insert(standup);
+        self.flush_manager();
     }
 }

@@ -11,7 +11,6 @@ mod jsonify;
 mod app;
 
 use standup::Aspect;
-use standup::Standup;
 use app::App;
 
 static TYPES: &'static [&'static str] = &["today", "yesterday", "blocker"];
@@ -35,10 +34,12 @@ fn main() {
         .short("d")
         .long("date")
         .value_name("DATE")
+        .use_delimiter(false)
         .help("The date that the standup happens on");
     let message_arg = Arg::with_name("message")
         .value_name("MESSAGE")
         .required(true)
+        .use_delimiter(false)
         .help("The message to add to the stand up");
 
     let matches = clap::App::new("standup")
@@ -95,7 +96,7 @@ fn main() {
         ("yesterday",   Some(sub_args)) => record_message(Aspect::Yesterday, sub_args),
         ("blocker",     Some(sub_args)) => record_message(Aspect::Blocker, sub_args),
         ("show",        Some(sub_args)) => handle_show(sub_args),
-        ("list",        Some(sub_args)) => handle_list(),
+        ("list",        Some(_sub_args)) => handle_list(),
         ("delete",      Some(sub_args)) => handle_delete(sub_args),
         _ => {},
     }
@@ -124,9 +125,23 @@ fn handle_list() {
 fn handle_delete(args: &ArgMatches) {
     let date = args.value_of("date").map(|s| s.to_string());
     let mut app = App::new(date).unwrap();
-    if let Some(standup) = app.delete() {
-        println!("deleted: \n{}", standup);
+    if let Some(line_number) = args.value_of("line_number") {
+        if let Ok(index) = line_number.parse::<usize>() {
+            match args.value_of("type") {
+                Some("today")       => app.delete_line(Aspect::Today,       index - 1),
+                Some("yesterday")   => app.delete_line(Aspect::Yesterday,   index - 1),
+                Some("blocker")     => app.delete_line(Aspect::Blocker,     index - 1),
+                _                   => println!("Invalid aspect")
+            }
+            println!("{}", &app.get_standup());
+        } else {
+            println!("Invalid line number");
+        }
     } else {
-        println!("No standup found on that day");
+        if let Some(standup) = app.delete() {
+            println!("deleted: \n{}", standup);
+        } else {
+            println!("No standup found on that day");
+        }
     }
 }

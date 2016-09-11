@@ -74,6 +74,13 @@ mod test {
     }
 
     #[test]
+    fn it_will_include_todays_notes_and_include_commas() {
+        let standup = Standup::new().add(Aspect::Today, "today,today");
+        let json = serialize(&[&standup]);
+        assert!(json.as_str().contains("today\":[\"today,today\"]"));
+    }
+
+    #[test]
     fn it_will_include_yesterdays_notes() {
         let standup = Standup::new().add(Aspect::Yesterday, "yesterday");
         let json = serialize(&[&standup]);
